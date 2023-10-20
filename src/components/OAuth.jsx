@@ -17,7 +17,7 @@ export default function OAuth() {
 
       const docRef = doc(db, "users", user.uid);
       const docSnap = await getDoc(docRef);
-      console.log("docSnap", docSnap.data());
+      // console.log("docSnap", docSnap.data());
       if (!docSnap.exists()) {
         await setDoc(docRef, {
           name: user.displayName,

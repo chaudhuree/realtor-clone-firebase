@@ -27,7 +27,55 @@ export default function CreateListing() {
     regularPrice,
     discountedPrice,
   } = formData;
-  function onChange() {}
+  function onChange(e) {
+    let boolean = null;
+    if (e.target.value === "true") {
+      boolean = true;
+    }
+    if (e.target.value === "false") {
+      boolean = false;
+    }
+    // console.log('boolean', boolean);
+
+    /*
+    if it taks value from some field whose value is true or false, 
+    it will set the value of boolean to true or false
+    but for other input and field types as it's value is not true or false
+    so it will set the value of boolean to null
+    */
+    // Files
+    if (e.target.files) {
+      setFormData((prevState) => ({
+        ...prevState,
+        images: e.target.files,
+      }));
+    }
+    // Text/Boolean/Number
+    if (!e.target.files) {
+      setFormData((prevState) => ({
+        ...prevState,
+        [e.target.id]: boolean ?? e.target.value,
+        /*
+        if boolean is null, set it to e.target.value
+
+        if it takes value from some field which value is true or false
+        it will set boolean to true or false
+        and if the value of boolean variable is true or false
+        it will set the value of that field to boolean variable's value
+
+        but when it will take value from some field which value is not true or false
+        it will set boolean to null 
+        and then the value of that field will be set to e.target.value
+        */
+      }));
+    }
+    /*
+        The nullish coalescing ( ?? ) operator is a logical operator 
+        that returns its right-hand side operand 
+        when its left-hand side operand is null or undefined, 
+        and otherwise returns its left-hand side operand.
+        */
+  }
   return (
     <main className="max-w-md px-2 mx-auto">
       <h1 className="text-3xl text-center mt-6 font-bold">Create a Listing</h1>

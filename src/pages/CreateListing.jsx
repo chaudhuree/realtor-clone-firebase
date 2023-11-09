@@ -1,6 +1,23 @@
 import { useState } from "react";
+import Spinner from "../components/Spinner";
+import { toast } from "react-toastify";
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+} from "firebase/storage";
+import { getAuth } from "firebase/auth";
+import { v4 as uuidv4 } from "uuid";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateListing() {
+
+  const [geolocationEnabled, setGeolocationEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
+  // form data
   const [formData, setFormData] = useState({
     type: "rent",
     name: "",
@@ -13,6 +30,10 @@ export default function CreateListing() {
     offer: false,
     regularPrice: 0,
     discountedPrice: 0,
+    latitude: 0,
+    longitude: 0,
+    images: {},
+    imageUrls: [],
   });
   const {
     type,
@@ -26,7 +47,13 @@ export default function CreateListing() {
     offer,
     regularPrice,
     discountedPrice,
+    latitude,
+    longitude,
+    images,
   } = formData;
+
+  const navigate = useNavigate();
+  const auth = getAuth();
   function onChange(e) {
     let boolean = null;
     if (e.target.value === "true") {
@@ -48,6 +75,10 @@ export default function CreateListing() {
       setFormData((prevState) => ({
         ...prevState,
         images: e.target.files,
+        // this will be an object of files
+        // {0: File, 1: File, 2: File, 3: File} like this
+        // we can make it an array of files by
+        // [...e.target.files]
       }));
     }
     // Text/Boolean/Number
@@ -76,10 +107,123 @@ export default function CreateListing() {
         and otherwise returns its left-hand side operand.
         */
   }
+
+  // encode url for geolocation
+  function customEncodeAddress(address) {
+    return address.replace(/ /g, '+');
+  }
+
+  // form submit
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    if (+discountedPrice >= +regularPrice) {
+      setLoading(false);
+      toast.error("Discounted price needs to be less than regular price");
+      return;
+    }
+    if (images.length > 6) {
+      setLoading(false);
+      toast.error("maximum 6 images are allowed");
+      return;
+    }
+    let geolocation = {};
+    let location;
+    if (geolocationEnabled) {
+      const encodedAddress = customEncodeAddress(address);
+      // const response = await fetch(
+      //   `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${process.env.REACT_APP_GEOCODE_API_KEY}`
+      // );
+      const response = await fetch(`https://cors-anywhere.herokuapp.com/https://api-v2.distancematrix.ai/maps/api/geocode/json?address=${encodedAddress}&key=O2iKiCdNgKVzOEqjfldyp8b5H33xpa2r0az0yLVgQCvGCkoShR83MFQlhg8WGBlS`);
+      const data = await response.json();
+      console.log(data);
+      console.log('latitude', data.result[0]?.geometry.location.lat);
+      
+      geolocation.lat = data.result[0]?.geometry.location.lat ?? 0;
+      geolocation.lng = data.result[0]?.geometry.location.lng ?? 0;
+
+      location = data.status === "ZERO_RESULTS" || data.status==="UNKNOWN_ERROR" || data.result===null && undefined;
+
+      if (location === undefined) {
+        setLoading(false);
+        toast.error("please enter a correct address");
+        return;
+      }
+    } else {
+      geolocation.lat = latitude;
+      geolocation.lng = longitude;
+    }
+
+    async function storeImage(image) {
+      return new Promise((resolve, reject) => {
+        const storage = getStorage();
+        const filename = `${auth.currentUser.uid}-${image.name}-${uuidv4()}`;
+        const storageRef = ref(storage, filename);
+        const uploadTask = uploadBytesResumable(storageRef, image);
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            // Observe state change events such as progress, pause, and resume
+            // Get task progress, including the number of bytes uploaded and the total number of bytes to be uploaded
+            const progress =
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload is " + progress + "% done");
+            switch (snapshot.state) {
+              case "paused":
+                console.log("Upload is paused");
+                break;
+              case "running":
+                console.log("Upload is running");
+                break;
+            }
+          },
+          (error) => {
+            // Handle unsuccessful uploads
+            reject(error);
+          },
+          () => {
+            // Handle successful uploads on complete
+            // For instance, get the download URL: https://firebasestorage.googleapis.com/...
+            getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+              resolve(downloadURL);
+            });
+          }
+        );
+      });
+    }
+
+    const imgUrls = await Promise.all(
+      [...images].map((image) => storeImage(image))
+    ).catch((error) => {
+      setLoading(false);
+      toast.error("Images not uploaded");
+      return;
+    });
+
+    const formDataCopy = {
+      ...formData,
+      imgUrls,
+      geolocation,
+      timestamp: serverTimestamp(),
+    };
+    delete formDataCopy.images;
+    !formDataCopy.offer && delete formDataCopy.discountedPrice;
+    delete formDataCopy.latitude;
+    delete formDataCopy.longitude;
+    const docRef = await addDoc(collection(db, "listings"), formDataCopy);
+    setLoading(false);
+    toast.success("Listing created");
+    navigate(`/category/${formDataCopy.type}/${docRef.id}`);
+  }
+
+  if (loading) {
+    return <Spinner />;
+  }
   return (
     <main className="max-w-md px-2 mx-auto">
       <h1 className="text-3xl text-center mt-6 font-bold">Create a Listing</h1>
-      <form>
+      <form onSubmit={onSubmit}>
         <p className="text-lg mt-6 font-semibold">Sell / Rent</p>
         <div className="flex">
           <button
@@ -317,3 +461,24 @@ export default function CreateListing() {
     </main>
   );
 }
+
+// address to lat long
+//https://api-v2.distancematrix.ai/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=O2iKiCdNgKVzOEqjfldyp8b5H33xpa2r0az0yLVgQCvGCkoShR83MFQlhg8WGBlS
+
+// lat long to address
+//https://api.distancematrix.ai/maps/api/geocode/json?latlng=40.714224,-73.961452&key=<your_access_token>
+
+// api key
+//O2iKiCdNgKVzOEqjfldyp8b5H33xpa2r0az0yLVgQCvGCkoShR83MFQlhg8WGBlS
+
+// encode url for geolocation
+/*
+function customEncodeAddress(address) {
+  return address.replace(/ /g, '+');
+}
+
+const address = "1600 Amphitheatre Parkway, Mountain View, CA";
+const encodedAddress = customEncodeAddress(address);
+
+console.log(encodedAddress);
+*/

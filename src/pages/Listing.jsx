@@ -1,35 +1,35 @@
-import { doc, getDoc } from "firebase/firestore";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import Spinner from "../components/Spinner";
+//firebase console components
+import { getAuth } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 // app firebase components
 import { db } from "../firebase";
 //swiper js
-import { Swiper, SwiperSlide } from "swiper/react";
-import{
-  Autoplay,
-  EffectFade,
-  Navigation,
-  Pagination,
-} from "swiper/modules";
 import "swiper/css/bundle";
+import { Autoplay, EffectFade, Navigation, Pagination } from "swiper/modules";
+import { Swiper, SwiperSlide } from "swiper/react";
 //icons
 import {
-  FaShare,
-  FaMapMarkerAlt,
-  FaBed,
   FaBath,
-  FaParking,
+  FaBed,
   FaChair,
+  FaMapMarkerAlt,
+  FaParking,
+  FaShare,
 } from "react-icons/fa";
+// components
+import Contact from "../components/Contact";
+import Spinner from "../components/Spinner";
 
 export default function Listing() {
-  const params = useParams();
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
- 
+  const [contactLandlord, setContactLandlord] = useState(false);
+  const params = useParams();
+  const auth = getAuth();
+
   useEffect(() => {
     async function fetchListing() {
       const docRef = doc(db, "listings", params.listingId);
@@ -49,10 +49,10 @@ export default function Listing() {
       <Swiper
         slidesPerView={1}
         pagination={{
-          type: 'progressbar',
+          type: "progressbar",
         }}
         navigation={true}
-        modules={[Pagination, Navigation,Autoplay,EffectFade]}
+        modules={[Pagination, Navigation, Autoplay, EffectFade]}
         effect="fade"
         autoplay={{ delay: 3000 }}
       >
@@ -92,7 +92,7 @@ export default function Listing() {
         listing details
       */}
       <div className="m-4 flex flex-col md:flex-row max-w-6xl lg:mx-auto p-4 rounded-lg shadow-lg bg-white lg:space-x-5">
-        <div className=" w-full h-[200px] lg-[400px]">
+        <div className=" w-full">
           <p className="text-2xl font-bold mb-3 text-blue-900">
             {listing.name} - ${" "}
             {listing.offer
@@ -122,7 +122,7 @@ export default function Listing() {
             <span className="font-semibold">Description - </span>
             {listing.description}
           </p>
-          <ul className="flex items-center space-x-2 sm:space-x-10 text-sm font-semibold">
+          <ul className="flex items-center space-x-2 sm:space-x-10 text-sm font-semibold mb-6">
             <li className="flex items-center whitespace-nowrap">
               <FaBed className="text-lg mr-1" />
               {+listing.bedrooms > 1 ? `${listing.bedrooms} Beds` : "1 Bed"}
@@ -140,6 +140,19 @@ export default function Listing() {
               {listing.furnished ? "Furnished" : "Not furnished"}
             </li>
           </ul>
+          {listing.userRef !== auth.currentUser?.uid && !contactLandlord && (
+            <div className="mt-6">
+              <button
+                onClick={() => setContactLandlord(true)}
+                className="px-7 py-3 bg-blue-600 text-white font-medium text-sm uppercase rounded shadow-md hover:bg-blue-700 hover:shadow-lg focus:bg-blue-700 focus:shadow-lg w-full text-center transition duration-150 ease-in-out "
+              >
+                Contact Landlord
+              </button>
+            </div>
+          )}
+          {contactLandlord && (
+            <Contact userRef={listing.userRef} listing={listing} />
+          )}
         </div>
         <div className="bg-blue-300 w-full h-[200px] lg-[400px] z-10 overflow-x-hidden"></div>
       </div>

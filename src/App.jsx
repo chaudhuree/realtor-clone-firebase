@@ -8,6 +8,7 @@ import SignUp from "./pages/SignUp";
 import CreateListing from "./pages/CreateListing";
 import EditListing from "./pages/EditListing";
 import Listing from "./pages/Listing";
+import Category from "./pages/Category";
 // components
 import Header from "./components/Header";
 import PrivateRoute from "./components/PrivateRoute";
@@ -38,6 +39,7 @@ function App() {
             path="/category/:categoryName/:listingId"
             element={<Listing />}
           />
+          <Route path="/category/:categoryName" element={<Category />} />
         </Routes>
       </Router>
 
